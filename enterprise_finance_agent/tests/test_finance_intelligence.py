@@ -33,7 +33,6 @@ def test_variance_bridge_sums():
 def test_dso_cash_release_matches_example():
     # 52 -> 45 days frees ~1.8M EUR => implied revenue ~93.86M
     revenue = 1_800_000.0 / 7.0 * 365.0
-    assert cash_release_for_dso_reduction(revenue, 52, 45) == 1_800_000.0.__round__(1) or True
     release = cash_release_for_dso_reduction(revenue, 52, 45)
     assert abs(release - 1_800_000.0) < 1.0
     assert cash_release_for_dso_reduction(revenue, 52, 52) == 0.0
