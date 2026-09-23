@@ -15,13 +15,34 @@ The system uses a **Finance Supervisor** as the single user-facing orchestrator.
 - FP&A Analyst
 - Accounting & Close Analyst
 - Treasury & Liquidity Analyst
-- Risk & Controls Analyst
+- Opportunity Intelligence Analyst
+- Risk Intelligence Analyst
+- Scenario & Forecast Analyst
 - External Research Analyst
 - Internal Knowledge Analyst
 - Reporting Analyst
 - Independent Validator
 
 The manager pattern is intentionally preferred over free-form handoffs for core finance workflows. It gives one place to enforce policy, budgets, provenance, rate limits, and approval requirements.
+
+Domain-free chassis lives in `../governed_agent_core` (policy gate, orchestration, audit, auth scope, debate engine). Finance owns only calculators, signals, prompts and reporting.
+
+## First management workflow
+
+```text
+Actual vs Budget -> Root Cause -> Risk Scan -> Opportunity Scan
+  -> Scenario -> Debate -> Validator -> CFO Report
+```
+
+Arithmetic and thresholds live in `calculators.py` (bridges, DSO/DIO/DPO, FX) and `signals.py` (liquidity, AR aging, customer/supplier concentration, rate exposure, inventory/margin/procurement opportunities, consistency gates). LLM specialists interpret those outputs but never own the numbers.
+
+Run the sample:
+
+```bash
+cd enterprise_finance_agent
+python -m pip install -e "../governed_agent_core" -e ".[dev]"
+python examples/demo_cfo_pack.py
+```
 
 ## What we reuse from the book repository
 
