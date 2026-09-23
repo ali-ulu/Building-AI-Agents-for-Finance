@@ -9,9 +9,18 @@ Rules:
 - Debate never invents numbers; it only narrows the EUR range or
   escalates disagreement to the CFO pack.
 - Validator runs deterministic checks before any LLM judge.
+
+The round engine lives in governed_agent_core; finance finding types
+are adapted here.
 """
 
 from __future__ import annotations
+
+from governed_agent_core.debate import (
+    Challenge,
+    Stake,
+    debate_round as _debate_round,
+)
 
 from .models import (
     CfoPack,
@@ -27,19 +36,26 @@ def debate_round(
     opportunity: OpportunityFinding, risk: RiskFindingDetail
 ) -> DebateRound:
     """Single claim vs rebuttal round with explicit escalation rule."""
-    opp = opportunity.estimated_eur
-    downside = risk.estimated_eur if risk.estimated_eur is not None else 0.0
-    # If downside wipes >50% of upside, escalate instead of netting.
-    escalate = downside > 0.5 * opp if opp > 0 else risk.severity in {
-        RiskLevel.HIGH,
-        RiskLevel.CRITICAL,
-    }
-    low = max(0.0, opp - downside)
+    outcome = _debate_round(
+        Stake(
+            label=opportunity.title,
+            amount=opportunity.estimated_eur,
+            confidence=opportunity.confidence,
+            refs=opportunity.evidence_refs,
+        ),
+        Challenge(
+            label=risk.title,
+            amount=risk.estimated_eur,
+            severity=risk.severity,
+            refs=risk.evidence_refs,
+            mitigation=risk.mitigation_hint,
+        ),
+    )
     return DebateRound(
-        opportunity_claim=f"{opportunity.title}: +{opp:,.0f} EUR ({opportunity.confidence})",
-        risk_rebuttal=f"{risk.title}: -{downside:,.0f} EUR [{risk.severity}]",
-        agreed_eur_range=(low, opp),
-        escalate_to_cfo=escalate,
+        opportunity_claim=outcome.claim,
+        risk_rebuttal=outcome.rebuttal,
+        agreed_eur_range=outcome.agreed_range,
+        escalate_to_cfo=outcome.escalate,
     )
 
 

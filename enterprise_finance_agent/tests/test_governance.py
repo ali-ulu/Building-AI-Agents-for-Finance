@@ -56,7 +56,7 @@ def test_auth_roles_and_scope():
     cfo = User(user_id="c", roles=[Role.CFO], entities=["DE"])
     assert authorize(draft, cfo).allowed is True
     assert authorize(
-        _req(action_class=ActionClass.MONEY_MOVEMENT), cfo
+        _req(action_class=ActionClass.HIGH_STAKES), cfo
     ).allowed is False
 
 

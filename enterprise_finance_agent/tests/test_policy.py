@@ -25,7 +25,7 @@ def test_draft_requires_approval():
 
 
 def test_money_movement_is_blocked():
-    decision = evaluate_execution_policy(request(ActionClass.MONEY_MOVEMENT))
+    decision = evaluate_execution_policy(request(ActionClass.HIGH_STAKES))
     assert decision.allowed is False
     assert decision.requires_human_approval is True
 

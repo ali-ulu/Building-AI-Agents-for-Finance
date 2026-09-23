@@ -3,25 +3,13 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from enum import StrEnum
 from typing import Any
 
+from governed_agent_core import ActionClass, RiskLevel
 from pydantic import BaseModel, Field
 
 
-class ActionClass(StrEnum):
-    READ = "read"
-    DRAFT = "draft"
-    CONTROLLED_WRITE = "controlled_write"
-    MONEY_MOVEMENT = "money_movement"
-    PRIVILEGED_CHANGE = "privileged_change"
-
-
-class RiskLevel(StrEnum):
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
-    CRITICAL = "critical"
+__all__ = ["ActionClass", "RiskLevel"]
 
 
 class Evidence(BaseModel):
