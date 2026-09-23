@@ -32,6 +32,12 @@ snapshot = FinanceSnapshot(
     fx_exposure=2_000_000,
     interest_bearing_debt=10_000_000,
     variable_rate_debt_share=0.60,
+    gross_margin_actual=0.31,
+    gross_margin_target=0.34,
+    procurement_spend=36_000_000,
+    procurement_savings_rate=0.02,
+    supplier_spend_total=20_000_000,
+    top_supplier_spend=8_000_000,
 )
 
 analysis = analyze_management_finance(
