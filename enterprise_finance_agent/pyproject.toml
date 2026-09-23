@@ -12,6 +12,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+runtime = [
+  "openai-agents",
+]
 dev = [
   "pytest>=8.0,<9",
 ]
