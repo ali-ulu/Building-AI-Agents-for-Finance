@@ -1,0 +1,74 @@
+[
+  {
+    "id": "variance-september-close",
+    "run": "variance_bridge",
+    "inputs": {"lines": [["hammadde", 0, -420000], ["hacim", 0, -510000], ["fx", 0, -180000], ["diger", 0, -90000]]},
+    "expected": {"total_variance": -1200000, "unexplained": 0}
+  },
+  {
+    "id": "dso-cash-release",
+    "run": "dso_release",
+    "inputs": {"annual_revenue": 93857142.86, "current_dso": 52, "target_dso": 45},
+    "expected": {"cash_freed": 1800000, "tolerance": 1.0}
+  },
+  {
+    "id": "dso-no-improvement",
+    "run": "dso_release",
+    "inputs": {"annual_revenue": 93857142.86, "current_dso": 45, "target_dso": 45},
+    "expected": {"cash_freed": 0, "tolerance": 0.001}
+  },
+  {
+    "id": "fx-five-pct",
+    "run": "fx_impact",
+    "inputs": {"exposure": 4000000, "move_pct": 5.0},
+    "expected": {"impact": 200000, "tolerance": 0.001}
+  },
+  {
+    "id": "ar-concentration-flag",
+    "run": "ar_aging",
+    "inputs": {"rows": [["CUST-A", 500000, 95], ["CUST-B", 400000, 20], ["CUST-C", 100000, 10], ["CUST-D", 50000, 5]]},
+    "expected": {"total": 1050000, "overdue_90plus": 500000, "concentration_flag": true}
+  },
+  {
+    "id": "ar-no-concentration",
+    "run": "ar_aging",
+    "inputs": {"rows": [["A", 100000, 10], ["B", 100000, 10], ["C", 100000, 10], ["D", 100000, 10], ["E", 100000, 120], ["F", 100000, 10], ["G", 100000, 10], ["H", 100000, 10], ["I", 100000, 10], ["J", 100000, 10]]},
+    "expected": {"total": 1000000, "overdue_90plus": 100000, "concentration_flag": false}
+  },
+  {
+    "id": "debate-escalate",
+    "run": "debate",
+    "inputs": {"upside": 1000000, "downside": 700000, "severity": "high"},
+    "expected": {"escalate": true, "range": [300000, 1000000]}
+  },
+  {
+    "id": "debate-agree",
+    "run": "debate",
+    "inputs": {"upside": 1800000, "downside": 640000, "severity": "high"},
+    "expected": {"escalate": false, "range": [1160000, 1800000]}
+  },
+  {
+    "id": "validator-clean-pack",
+    "run": "validate_pack",
+    "inputs": {"pack": "clean"},
+    "expected": {"codes": []}
+  },
+  {
+    "id": "validator-broken-pack",
+    "run": "validate_pack",
+    "inputs": {"pack": "broken"},
+    "expected": {"codes": ["NO_ROOT_CAUSE", "NO_RISK_SCAN", "NO_OPPORTUNITY_SCAN", "NO_SCENARIO", "NO_ACTION"]}
+  },
+  {
+    "id": "auth-scope-deny",
+    "run": "auth",
+    "inputs": {"roles": ["analyst"], "user_entities": ["DE"], "request_entities": ["FR"]},
+    "expected": {"allowed": false}
+  },
+  {
+    "id": "auth-analyst-read-allow",
+    "run": "auth",
+    "inputs": {"roles": ["analyst"], "user_entities": ["DE"], "request_entities": ["DE"], "action": "read"},
+    "expected": {"allowed": true}
+  }
+]
