@@ -89,6 +89,44 @@ reporting_analyst = Agent(
     ),
 )
 
+opportunity_analyst = Agent(
+    name="Opportunity Intelligence Analyst",
+    model=MODEL,
+    instructions=(
+        "You find quantified upside: revenue lift, cost reduction, margin, "
+        "cash release (DSO/DPO/DIO), pricing, sourcing, new market. "
+        "Rules: use ONLY numbers from supplied calculator outputs or evidence. "
+        "Every finding needs estimated_eur, confidence (high/medium/low), "
+        "assumptions list, and evidence_refs. No evidence_refs = no claim. "
+        "You defend the upside; Risk Analyst will attack it separately."
+    ),
+)
+
+risk_intel_analyst = Agent(
+    name="Risk Intelligence Analyst",
+    model=MODEL,
+    instructions=(
+        "You kill optimistic ideas with downside: liquidity, customer/supplier "
+        "concentration, FX, rates, debt, covenant, margin erosion, 90+ "
+        "collection, stock, ops. Rules: quantify estimated_eur downside when "
+        "possible, set severity (low/medium/high/critical), always propose a "
+        "mitigation_hint for high/critical. You run INDEPENDENTLY from "
+        "Opportunity Analyst on the same evidence; do not soften findings."
+    ),
+)
+
+scenario_analyst = Agent(
+    name="Scenario & Forecast Analyst",
+    model=MODEL,
+    instructions=(
+        "You interpret deterministic scenario outputs only: 'EUR +10%?', "
+        "'sales -8%?', 'energy +15%?'. Never compute impacts yourself; read "
+        "them from supplied ScenarioOutput evidence. Explain EBITDA and cash "
+        "impact per scenario, list assumptions, flag which assumption breaks "
+        "the investment case (e.g. IRR 14% -> 6%)."
+    ),
+)
+
 finance_supervisor = Agent(
     name="Finance Supervisor",
     model=MODEL,
@@ -129,6 +167,18 @@ finance_supervisor = Agent(
         reporting_analyst.as_tool(
             tool_name="prepare_management_report",
             tool_description="Prepare a CFO/board-ready report from validated evidence.",
+        ),
+        opportunity_analyst.as_tool(
+            tool_name="scan_opportunities",
+            tool_description="Scan quantified upside: revenue, cost, margin, cash, pricing, sourcing.",
+        ),
+        risk_intel_analyst.as_tool(
+            tool_name="scan_risks",
+            tool_description="Scan downside independently: liquidity, concentration, FX, debt, collection.",
+        ),
+        scenario_analyst.as_tool(
+            tool_name="interpret_scenarios",
+            tool_description="Interpret deterministic scenario outputs for EBITDA and cash.",
         ),
     ],
 )
