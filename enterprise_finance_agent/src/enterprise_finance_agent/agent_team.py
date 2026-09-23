@@ -2,7 +2,7 @@
 
 The supervisor remains the only user-facing agent. Specialists are exposed
 as bounded tools so governance and final synthesis stay centralized.
-Data access will be added through narrow adapter tools in the next slice.
+Deterministic application code owns calculations and control decisions.
 """
 
 from __future__ import annotations
@@ -23,9 +23,10 @@ fpna_analyst = Agent(
     name="FP&A Analyst",
     model=MODEL,
     instructions=(
-        "Analyze budget, actuals, forecast, KPI and scenario evidence supplied "
-        "to you. Explain material drivers and quantify bridges. Never invent "
-        "missing figures. Clearly separate reported data from interpretation."
+        "Analyze budget, actuals, forecast and KPI evidence supplied to you. "
+        "Explain material drivers and quantify bridges using only supplied "
+        "numbers. Never invent missing figures. Clearly separate reported "
+        "data from interpretation."
     ),
 )
 
@@ -50,12 +51,36 @@ treasury_analyst = Agent(
 )
 
 risk_analyst = Agent(
-    name="Risk & Controls Analyst",
+    name="Risk Intelligence Analyst",
     model=MODEL,
     instructions=(
-        "Review supplied finance evidence for control breaches, policy issues, "
-        "segregation-of-duties concerns, stale data and unsupported claims. "
-        "Prefer deterministic findings when they are supplied."
+        "Challenge the analysis from a downside and control perspective. Review "
+        "deterministic risk signals, control breaches, stale data, customer and "
+        "supplier concentration, liquidity, FX, rates and unsupported claims. "
+        "Do not downgrade a deterministic high-severity signal."
+    ),
+)
+
+opportunity_analyst = Agent(
+    name="Opportunity Intelligence Analyst",
+    model=MODEL,
+    instructions=(
+        "Look for financially measurable opportunities in supplied validated "
+        "evidence: revenue, margin, pricing, working capital, collections, "
+        "inventory, procurement, financing and capital allocation. State the "
+        "value driver, estimated value when supplied, assumptions, dependencies "
+        "and confidence. Never invent an opportunity value."
+    ),
+)
+
+scenario_analyst = Agent(
+    name="Scenario & Forecast Analyst",
+    model=MODEL,
+    instructions=(
+        "Interpret deterministic scenario and sensitivity outputs. Compare base, "
+        "upside and downside cases, identify the assumptions that matter most, "
+        "and explain second-order implications without changing the supplied "
+        "calculated values."
     ),
 )
 
@@ -73,9 +98,8 @@ knowledge_analyst = Agent(
     name="Internal Knowledge Analyst",
     model=MODEL,
     instructions=(
-        "Answer from supplied governed internal-document evidence only. Quote "
-        "policy meaning accurately, preserve document/version references, and "
-        "say when the evidence is insufficient."
+        "Answer from supplied governed internal-document evidence only. Preserve "
+        "document/version references and say when evidence is insufficient."
     ),
 )
 
@@ -84,8 +108,8 @@ reporting_analyst = Agent(
     model=MODEL,
     instructions=(
         "Turn validated evidence into concise CFO, board or management reporting. "
-        "Preserve periods, entities, currencies, provenance, validation warnings "
-        "and data gaps. Never smooth over a failed control."
+        "Preserve periods, entities, currencies, provenance, risk signals, "
+        "opportunities, scenario assumptions, validation warnings and data gaps."
     ),
 )
 
@@ -94,17 +118,19 @@ finance_supervisor = Agent(
     model=MODEL,
     instructions=(
         "You are the single user-facing orchestrator for a large-company finance "
-        "copilot. Use specialist tools for bounded analysis. Keep reported facts, "
-        "external research and model commentary separate. Never fabricate a "
-        "number. Never execute or imply execution of money movement, privileged "
-        "master-data changes or accounting postings. Respect deterministic policy "
-        "and validation results supplied by the application. Material conclusions "
-        "must preserve provenance, period, entity, currency and data gaps."
+        "copilot. Use specialist tools for bounded analysis. A standard management "
+        "review should cover actual-vs-budget drivers, risks, opportunities and "
+        "scenarios before reporting. Keep reported facts, external research and "
+        "model commentary separate. Never fabricate a number. Never execute or "
+        "imply execution of money movement, privileged master-data changes or "
+        "accounting postings. Respect deterministic policy and validation results "
+        "supplied by the application. Material conclusions must preserve "
+        "provenance, period, entity, currency and data gaps."
     ),
     tools=[
         fpna_analyst.as_tool(
             tool_name="analyze_fpna",
-            tool_description="Analyze budget, actuals, forecasts, KPIs and scenarios.",
+            tool_description="Explain budget, actual, forecast and KPI drivers.",
         ),
         accounting_analyst.as_tool(
             tool_name="analyze_accounting_close",
@@ -115,8 +141,16 @@ finance_supervisor = Agent(
             tool_description="Analyze cash, liquidity, debt, rates and FX evidence.",
         ),
         risk_analyst.as_tool(
-            tool_name="review_finance_controls",
-            tool_description="Review evidence and findings for finance/control risk.",
+            tool_name="analyze_finance_risk",
+            tool_description="Challenge the analysis using deterministic risk/control evidence.",
+        ),
+        opportunity_analyst.as_tool(
+            tool_name="analyze_finance_opportunities",
+            tool_description="Assess measurable growth, margin and cash opportunities.",
+        ),
+        scenario_analyst.as_tool(
+            tool_name="analyze_scenarios",
+            tool_description="Interpret deterministic sensitivity and scenario outputs.",
         ),
         research_analyst.as_tool(
             tool_name="analyze_external_research",
