@@ -49,6 +49,15 @@ class FinanceSnapshot(BaseModel):
     interest_bearing_debt: float = 0.0
     variable_rate_debt_share: float = 0.0
 
+    gross_margin_actual: float | None = None
+    gross_margin_target: float | None = None
+
+    procurement_spend: float = 0.0
+    procurement_savings_rate: float = 0.0
+
+    supplier_spend_total: float = 0.0
+    top_supplier_spend: float = 0.0
+
 
 class VarianceDriver(BaseModel):
     name: str
@@ -206,6 +215,24 @@ def _scan_risks(snapshot: FinanceSnapshot) -> list[RiskSignal]:
                 )
             )
 
+    if snapshot.supplier_spend_total > 0:
+        supplier_concentration = (
+            snapshot.top_supplier_spend / snapshot.supplier_spend_total
+        )
+        if supplier_concentration >= 0.35:
+            risks.append(
+                RiskSignal(
+                    code="SUPPLIER_CONCENTRATION",
+                    level=RiskLevel.HIGH,
+                    title="Procurement spend is concentrated in one supplier",
+                    evidence=(
+                        f"Top supplier represents "
+                        f"{supplier_concentration:.1%} of supplier spend"
+                    ),
+                    estimated_exposure=snapshot.top_supplier_spend,
+                )
+            )
+
     if (
         snapshot.interest_bearing_debt > 0
         and snapshot.variable_rate_debt_share >= 0.50
@@ -295,6 +322,49 @@ def _scan_opportunities(snapshot: FinanceSnapshot) -> list[OpportunitySignal]:
             )
         )
 
+    if (
+        snapshot.gross_margin_actual is not None
+        and snapshot.gross_margin_target is not None
+        and snapshot.annual_revenue > 0
+        and snapshot.gross_margin_actual < snapshot.gross_margin_target
+    ):
+        gap = snapshot.gross_margin_target - snapshot.gross_margin_actual
+        value = snapshot.annual_revenue * gap
+        opportunities.append(
+            OpportunitySignal(
+                code="GROSS_MARGIN_GAP",
+                title="Close the gross-margin gap",
+                rationale=(
+                    f"Gross margin is {snapshot.gross_margin_actual:.1%} vs "
+                    f"target {snapshot.gross_margin_target:.1%}. The gap should "
+                    "be decomposed into price, mix, volume and input-cost drivers."
+                ),
+                estimated_value=value,
+                confidence="medium",
+            )
+        )
+
+    if (
+        snapshot.procurement_spend > 0
+        and snapshot.procurement_savings_rate > 0
+    ):
+        opportunities.append(
+            OpportunitySignal(
+                code="PROCUREMENT_SAVINGS",
+                title="Test procurement savings potential",
+                rationale=(
+                    f"Applying the approved savings assumption of "
+                    f"{snapshot.procurement_savings_rate:.1%} to addressable "
+                    "procurement spend provides a quantified opportunity envelope."
+                ),
+                estimated_value=(
+                    snapshot.procurement_spend
+                    * snapshot.procurement_savings_rate
+                ),
+                confidence="medium",
+            )
+        )
+
     return opportunities
 
 
@@ -364,6 +434,10 @@ def _validate(
         "fx_exposure": snapshot.fx_exposure,
         "interest_bearing_debt": snapshot.interest_bearing_debt,
         "variable_rate_debt_share": snapshot.variable_rate_debt_share,
+        "procurement_spend": snapshot.procurement_spend,
+        "procurement_savings_rate": snapshot.procurement_savings_rate,
+        "supplier_spend_total": snapshot.supplier_spend_total,
+        "top_supplier_spend": snapshot.top_supplier_spend,
     }
 
     for name, value in numeric_fields.items():
@@ -373,6 +447,19 @@ def _validate(
                     code="NON_FINITE_VALUE",
                     severity=RiskLevel.CRITICAL,
                     message=f"{name} must be finite.",
+                )
+            )
+
+    for name, value in {
+        "gross_margin_actual": snapshot.gross_margin_actual,
+        "gross_margin_target": snapshot.gross_margin_target,
+    }.items():
+        if value is not None and not isfinite(value):
+            findings.append(
+                ValidationFinding(
+                    code="NON_FINITE_VALUE",
+                    severity=RiskLevel.CRITICAL,
+                    message=f"{name} must be finite when supplied.",
                 )
             )
 
@@ -394,6 +481,15 @@ def _validate(
             )
         )
 
+    if snapshot.top_supplier_spend > snapshot.supplier_spend_total:
+        findings.append(
+            ValidationFinding(
+                code="SUPPLIER_CONCENTRATION_INCONSISTENT",
+                severity=RiskLevel.CRITICAL,
+                message="Top-supplier spend cannot exceed total supplier spend.",
+            )
+        )
+
     if not 0 <= snapshot.variable_rate_debt_share <= 1:
         findings.append(
             ValidationFinding(
@@ -402,6 +498,28 @@ def _validate(
                 message="Variable-rate debt share must be between 0 and 1.",
             )
         )
+
+    if not 0 <= snapshot.procurement_savings_rate <= 1:
+        findings.append(
+            ValidationFinding(
+                code="INVALID_PROCUREMENT_SAVINGS_RATE",
+                severity=RiskLevel.CRITICAL,
+                message="Procurement savings rate must be between 0 and 1.",
+            )
+        )
+
+    for name, margin in {
+        "gross_margin_actual": snapshot.gross_margin_actual,
+        "gross_margin_target": snapshot.gross_margin_target,
+    }.items():
+        if margin is not None and not -1 <= margin <= 1:
+            findings.append(
+                ValidationFinding(
+                    code="INVALID_MARGIN",
+                    severity=RiskLevel.CRITICAL,
+                    message=f"{name} must be represented as a decimal between -1 and 1.",
+                )
+            )
 
     if not variances:
         findings.append(
