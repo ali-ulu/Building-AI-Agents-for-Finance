@@ -1,9 +1,13 @@
-"""CFO pack markdown formatter. Renders validated deterministic outputs;
-no new numbers are computed here."""
+"""CFO pack markdown formatter.
+
+Renders validated deterministic outputs. Opportunity totals are reported as
+both gross and conservative de-duplicated envelopes to prevent double counting.
+"""
 
 from __future__ import annotations
 
 from .models import CfoPack
+from .opportunities import summarize_opportunities
 
 
 def format_cfo_pack_markdown(pack: CfoPack) -> str:
@@ -34,12 +38,29 @@ def format_cfo_pack_markdown(pack: CfoPack) -> str:
 
     lines.extend(["", "## Opportunity scan", ""])
     for opp in pack.opportunities or []:
+        overlap = f" | overlap={opp.overlap_group}" if opp.overlap_group else ""
         lines.append(
             f"- {opp.title}: +{opp.estimated_eur:,.0f} "
-            f"{pack.currency} [{opp.confidence}]"
+            f"{pack.currency} [{opp.confidence}]{overlap}"
         )
     if not pack.opportunities:
         lines.append("- No opportunities.")
+    else:
+        portfolio = summarize_opportunities(pack.opportunities)
+        lines.append("")
+        lines.append(
+            f"**Gross opportunity envelope:** "
+            f"{portfolio.gross_estimated_eur:,.0f} {pack.currency}"
+        )
+        lines.append(
+            f"**Conservative de-duplicated envelope:** "
+            f"{portfolio.conservative_estimated_eur:,.0f} {pack.currency}"
+        )
+        if portfolio.overlap_groups:
+            lines.append(
+                "**Overlap groups:** "
+                + ", ".join(sorted(portfolio.overlap_groups))
+            )
 
     lines.extend(["", "## Scenarios", ""])
     for scenario in pack.scenarios or []:
