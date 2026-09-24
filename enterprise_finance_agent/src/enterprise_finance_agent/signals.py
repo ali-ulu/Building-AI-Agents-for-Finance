@@ -1,29 +1,21 @@
 """Deterministic risk/opportunity signal scans over one company snapshot.
 
-Ported from PR #2 (enterprise-finance-risk-opportunity branch) and adapted
-to the governed finding models: every signal carries a code, a quantified
-EUR exposure/value and evidence refs. Thresholds are explicit constants so
-finance can review them in one place.
-
-LLMs may explain these signals but never override their arithmetic.
+Thresholds come from finance-owned config so adapters and signal rules cannot
+silently drift apart. LLMs may explain these signals but never override their
+arithmetic.
 """
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
+from .config import DEFAULT_FINANCE_POLICY, FinancePolicyConfig
 from .models import (
     OpportunityFinding,
     RiskFindingDetail,
     RiskLevel,
     ValidationFinding,
 )
-
-# --- Thresholds (finance-reviewed, change deliberately) ---
-AR_HIGH_SHARE = 0.20
-AR_ELEVATED_SHARE = 0.10
-CONCENTRATION_SHARE = 0.35
-VARIABLE_RATE_SHARE = 0.50
 
 
 class CompanySnapshot(BaseModel):
@@ -60,7 +52,9 @@ class CompanySnapshot(BaseModel):
 
 
 def scan_risk_signals(
-    snapshot: CompanySnapshot, source: str = "snapshot"
+    snapshot: CompanySnapshot,
+    source: str = "snapshot",
+    policy: FinancePolicyConfig = DEFAULT_FINANCE_POLICY,
 ) -> list[RiskFindingDetail]:
     """Deterministic downside scan. Pure function, no model calls."""
     risks: list[RiskFindingDetail] = []
@@ -83,7 +77,7 @@ def scan_risk_signals(
 
     if snapshot.receivables_total > 0:
         share = snapshot.receivables_over_90 / snapshot.receivables_total
-        if share >= AR_HIGH_SHARE:
+        if share >= policy.ar_high_share:
             risks.append(
                 RiskFindingDetail(
                     title=f"90+ day receivables at {share:.1%} of AR",
@@ -94,7 +88,7 @@ def scan_risk_signals(
                     mitigation_hint="Weekly collection sprint on 90+ balances.",
                 )
             )
-        elif share >= AR_ELEVATED_SHARE:
+        elif share >= policy.ar_elevated_share:
             risks.append(
                 RiskFindingDetail(
                     title=f"90+ day receivables elevated at {share:.1%}",
@@ -104,10 +98,9 @@ def scan_risk_signals(
                     evidence_refs=[source],
                 )
             )
-        concentration = (
-            snapshot.top_customer_receivables / snapshot.receivables_total
-        )
-        if concentration >= CONCENTRATION_SHARE:
+
+        concentration = snapshot.top_customer_receivables / snapshot.receivables_total
+        if concentration >= policy.concentration_share:
             risks.append(
                 RiskFindingDetail(
                     title=f"Top customer holds {concentration:.1%} of receivables",
@@ -120,10 +113,8 @@ def scan_risk_signals(
             )
 
     if snapshot.supplier_spend_total > 0:
-        concentration = (
-            snapshot.top_supplier_spend / snapshot.supplier_spend_total
-        )
-        if concentration >= CONCENTRATION_SHARE:
+        concentration = snapshot.top_supplier_spend / snapshot.supplier_spend_total
+        if concentration >= policy.concentration_share:
             risks.append(
                 RiskFindingDetail(
                     title=f"Top supplier takes {concentration:.1%} of spend",
@@ -137,7 +128,7 @@ def scan_risk_signals(
 
     if (
         snapshot.interest_bearing_debt > 0
-        and snapshot.variable_rate_debt_share >= VARIABLE_RATE_SHARE
+        and snapshot.variable_rate_debt_share >= policy.variable_rate_share
     ):
         risks.append(
             RiskFindingDetail(
@@ -172,13 +163,10 @@ def scan_risk_signals(
 def scan_opportunity_signals(
     snapshot: CompanySnapshot, source: str = "snapshot"
 ) -> list[OpportunityFinding]:
-    """Deterministic upside scan. Pure function, no model calls."""
+    """Deterministic upside scan with explicit overlap groups."""
     opportunities: list[OpportunityFinding] = []
 
-    if (
-        snapshot.annual_revenue > 0
-        and snapshot.dso_days > snapshot.dso_target_days
-    ):
+    if snapshot.annual_revenue > 0 and snapshot.dso_days > snapshot.dso_target_days:
         gap = snapshot.dso_days - snapshot.dso_target_days
         opportunities.append(
             OpportunityFinding(
@@ -191,6 +179,7 @@ def scan_opportunity_signals(
                     "without losing customers"
                 ],
                 evidence_refs=[source],
+                overlap_group="receivables_cash",
             )
         )
 
@@ -203,6 +192,7 @@ def scan_opportunity_signals(
                 confidence="high",
                 assumptions=["Obsolete stock is saleable or returnable"],
                 evidence_refs=[source],
+                overlap_group="inventory_cash",
             )
         )
 
@@ -215,6 +205,7 @@ def scan_opportunity_signals(
                 confidence="medium",
                 assumptions=["Focused 90+ collection recovers balances in full"],
                 evidence_refs=[source],
+                overlap_group="receivables_cash",
             )
         )
 
@@ -233,6 +224,7 @@ def scan_opportunity_signals(
                 confidence="medium",
                 assumptions=["Decompose into price, mix, volume, input cost"],
                 evidence_refs=[source],
+                overlap_group="margin_improvement",
             )
         )
 
@@ -247,6 +239,7 @@ def scan_opportunity_signals(
                 confidence="medium",
                 assumptions=["Approved savings rate applies to addressable spend"],
                 evidence_refs=[source],
+                overlap_group="margin_improvement",
             )
         )
 
