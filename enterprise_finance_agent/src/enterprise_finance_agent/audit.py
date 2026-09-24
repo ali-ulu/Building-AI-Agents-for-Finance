@@ -9,6 +9,7 @@ from governed_agent_core.audit import (
     JsonlAuditSink as JsonlAuditSink,
     MemoryAuditSink as MemoryAuditSink,
     fingerprint_mapping,
+    verify_jsonl_audit_chain as verify_jsonl_audit_chain,
 )
 
 from .models import FinanceResult
