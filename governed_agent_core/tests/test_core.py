@@ -1,10 +1,13 @@
 """Core chassis tests: no domain imports allowed here."""
 
 import asyncio
+import json
 
 import governed_agent_core as core
 from governed_agent_core import (
     ActionClass,
+    AuditEvent,
+    JsonlAuditSink,
     MemoryAuditSink,
     Principal,
     RiskLevel,
@@ -15,6 +18,7 @@ from governed_agent_core import (
     evaluate_execution_policy,
     fingerprint_mapping,
     run_governed,
+    verify_jsonl_audit_chain,
 )
 
 
@@ -68,6 +72,41 @@ def test_fingerprint_stable():
     )
 
 
+def _event(run_id: str) -> AuditEvent:
+    return AuditEvent(
+        run_id=run_id,
+        request_id=run_id,
+        principal_id="u",
+        action_class="read",
+        authorized=True,
+        evidence_count=1,
+    )
+
+
+def test_memory_audit_is_hash_chained():
+    sink = MemoryAuditSink()
+    sink.append(_event("r1"))
+    sink.append(_event("r2"))
+    assert sink.events[0].event_hash
+    assert sink.events[1].previous_hash == sink.events[0].event_hash
+
+
+def test_jsonl_audit_chain_detects_tampering(tmp_path):
+    path = tmp_path / "audit.jsonl"
+    sink = JsonlAuditSink(path)
+    sink.append(_event("r1"))
+    sink.append(_event("r2"))
+    assert verify_jsonl_audit_chain(path) is True
+
+    lines = path.read_text(encoding="utf-8").splitlines()
+    first = json.loads(lines[0])
+    first["principal_id"] = "tampered"
+    lines[0] = json.dumps(first)
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    assert verify_jsonl_audit_chain(path) is False
+
+
 class _Req:
     def __init__(self):
         self.request_id = "r1"
@@ -106,6 +145,7 @@ def test_orchestrator_end_to_end():
     assert res.summary == "ok"
     assert len(sink.events) == 1
     assert sink.events[0].principal_id == "u"
+    assert sink.events[0].event_hash
 
 
 def test_orchestrator_auth_deny():

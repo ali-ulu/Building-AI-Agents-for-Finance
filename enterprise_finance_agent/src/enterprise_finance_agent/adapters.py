@@ -14,6 +14,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from .calculators import VarianceLine, build_variance_bridge
+from .config import DEFAULT_FINANCE_POLICY, FinancePolicyConfig
 from .models import Evidence
 
 
@@ -36,6 +37,7 @@ def summarize_ar_aging(
     rows: list[ArCustomerBalance],
     source: str = "ar_adapter",
     period: str | None = None,
+    policy: FinancePolicyConfig = DEFAULT_FINANCE_POLICY,
 ) -> tuple[ArAgingSummary, list[Evidence]]:
     """Summarize AR aging + emit traceable evidence. Pure function."""
     total = sum(r.balance_eur for r in rows)
@@ -43,15 +45,15 @@ def summarize_ar_aging(
     ranked = sorted(rows, key=lambda r: r.balance_eur, reverse=True)
     top2 = ranked[:2]
     top2_sum = sum(r.balance_eur for r in top2)
-    share = (top2_sum / total * 100.0) if total > 0 else 0.0
+    share_ratio = (top2_sum / total) if total > 0 else 0.0
     now = datetime.now(timezone.utc)
     summary = ArAgingSummary(
         total_eur=total,
         overdue_90plus_eur=overdue,
-        top2_share_pct=round(share, 1),
+        top2_share_pct=round(share_ratio * 100.0, 1),
         top2_ids=[r.customer_id for r in top2],
         customer_count=len(rows),
-        concentration_flag=share > 30.0,
+        concentration_flag=share_ratio >= policy.concentration_share,
     )
     evidence = [
         Evidence(
@@ -66,7 +68,11 @@ def summarize_ar_aging(
     return summary, evidence
 
 
-def load_ar_aging_csv(path: str | Path, period: str | None = None) -> tuple[ArAgingSummary, list[Evidence]]:
+def load_ar_aging_csv(
+    path: str | Path,
+    period: str | None = None,
+    policy: FinancePolicyConfig = DEFAULT_FINANCE_POLICY,
+) -> tuple[ArAgingSummary, list[Evidence]]:
     """Read columns: customer_id, balance_eur, days_overdue. Read-only."""
     rows: list[ArCustomerBalance] = []
     with open(path, newline="", encoding="utf-8-sig") as f:
@@ -78,7 +84,12 @@ def load_ar_aging_csv(path: str | Path, period: str | None = None) -> tuple[ArAg
                     days_overdue=int(rec["days_overdue"]),
                 )
             )
-    return summarize_ar_aging(rows, source=f"csv:{Path(path).name}", period=period)
+    return summarize_ar_aging(
+        rows,
+        source=f"csv:{Path(path).name}",
+        period=period,
+        policy=policy,
+    )
 
 
 class BudgetActualRow(BaseModel):
@@ -87,8 +98,12 @@ class BudgetActualRow(BaseModel):
     actual_eur: float
 
 
-def load_budget_actual_csv(path: str | Path, period: str | None = None):
-    """Read columns: label, budget_eur, actual_eur -> VarianceBridge + Evidence."""
+def load_budget_actual_csv(
+    path: str | Path,
+    period: str | None = None,
+    headline_variance: float | None = None,
+):
+    """Read label/budget/actual columns -> VarianceBridge + Evidence."""
     lines: list[VarianceLine] = []
     with open(path, newline="", encoding="utf-8-sig") as f:
         for rec in csv.DictReader(f):
@@ -99,7 +114,7 @@ def load_budget_actual_csv(path: str | Path, period: str | None = None):
                     actual=float(rec["actual_eur"]),
                 )
             )
-    bridge = build_variance_bridge(lines)
+    bridge = build_variance_bridge(lines, headline_variance=headline_variance)
     evidence = [
         Evidence(
             source_system=f"csv:{Path(path).name}",

@@ -6,6 +6,24 @@
     "expected": {"total_variance": -1200000, "unexplained": 0}
   },
   {
+    "id": "variance-partial-explanation",
+    "run": "variance_bridge",
+    "inputs": {"lines": [["hammadde", 0, -420000], ["hacim", 0, -510000], ["fx", 0, -180000]], "headline_variance": -1200000},
+    "expected": {"total_variance": -1200000, "unexplained": -90000}
+  },
+  {
+    "id": "volume-scenario-revenue-base",
+    "run": "scenario_ebitda",
+    "inputs": {"base_ebitda": 10000000, "revenue_base": 100000000, "volume_move_pct": -8, "contribution_margin_ratio": 0.35},
+    "expected": {"ebitda": 7200000, "tolerance": 0.001}
+  },
+  {
+    "id": "opportunity-overlap-dedup",
+    "run": "opportunity_portfolio",
+    "inputs": {"items": [{"title": "DSO", "amount": 1800000, "group": "receivables_cash"}, {"title": "90+ AR", "amount": 640000, "group": "receivables_cash"}, {"title": "inventory", "amount": 500000}]},
+    "expected": {"conservative_estimated_eur": 2300000, "tolerance": 0.001}
+  },
+  {
     "id": "dso-cash-release",
     "run": "dso_release",
     "inputs": {"annual_revenue": 93857142.86, "current_dso": 52, "target_dso": 45},

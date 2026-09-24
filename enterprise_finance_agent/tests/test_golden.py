@@ -1,8 +1,7 @@
 """Golden regression gate: eval/golden_cases.json drives deterministic checks.
 
-Add a case here when finance reviews a new scenario. If a golden case
-fails, the calculators/contracts changed — investigate, don't edit the
-expected value to make it green without finance sign-off.
+Add a case when finance reviews a new scenario. If a golden case fails,
+investigate the calculation or contract change before changing expectations.
 """
 
 import json
@@ -19,6 +18,7 @@ from enterprise_finance_agent.calculators import (
     fx_ebitda_impact,
     FxExposure,
     build_variance_bridge,
+    scenario_ebitda,
 )
 from enterprise_finance_agent.debate import debate_round, validate_cfo_pack
 from enterprise_finance_agent.models import (
@@ -30,6 +30,7 @@ from enterprise_finance_agent.models import (
     RiskLevel,
     ScenarioOutput,
 )
+from enterprise_finance_agent.opportunities import summarize_opportunities
 
 CASES = json.loads(
     (Path(__file__).parent.parent / "eval" / "golden_cases.json").read_text(
@@ -75,7 +76,11 @@ def _run_case(case: dict):
     run, inputs, expected = case["run"], case["inputs"], case["expected"]
     if run == "variance_bridge":
         b = build_variance_bridge(
-            [VarianceLine(label=n, budget=x, actual=y) for n, x, y in inputs["lines"]]
+            [
+                VarianceLine(label=n, budget=x, actual=y)
+                for n, x, y in inputs["lines"]
+            ],
+            headline_variance=inputs.get("headline_variance"),
         )
         assert b.total_variance == expected["total_variance"], case["id"]
         assert b.unexplained == expected["unexplained"], case["id"]
@@ -92,6 +97,35 @@ def _run_case(case: dict):
             inputs["move_pct"],
         )
         assert abs(got - expected["impact"]) <= expected["tolerance"], case["id"]
+    elif run == "scenario_ebitda":
+        got = scenario_ebitda(
+            base_ebitda=inputs["base_ebitda"],
+            volume_move_pct=inputs["volume_move_pct"],
+            contribution_margin_ratio=inputs["contribution_margin_ratio"],
+            cost_shock=inputs.get("cost_shock", 0.0),
+            fx_impact=inputs.get("fx_impact", 0.0),
+            revenue_base=inputs["revenue_base"],
+        )
+        assert abs(got - expected["ebitda"]) <= expected["tolerance"], case["id"]
+    elif run == "opportunity_portfolio":
+        items = [
+            OpportunityFinding(
+                title=item["title"],
+                category="cash",
+                estimated_eur=item["amount"],
+                confidence="medium",
+                overlap_group=item.get("group"),
+            )
+            for item in inputs["items"]
+        ]
+        portfolio = summarize_opportunities(items)
+        assert (
+            abs(
+                portfolio.conservative_estimated_eur
+                - expected["conservative_estimated_eur"]
+            )
+            <= expected["tolerance"]
+        ), case["id"]
     elif run == "ar_aging":
         summary, _ = summarize_ar_aging(
             [
@@ -145,6 +179,6 @@ def _run_case(case: dict):
 
 
 def test_golden_cases():
-    assert len(CASES) >= 10, "golden set must keep growing, never shrink silently"
+    assert len(CASES) >= 15, "golden set must keep growing, never shrink silently"
     for case in CASES:
         _run_case(case)

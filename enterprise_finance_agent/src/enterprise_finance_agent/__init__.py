@@ -5,8 +5,10 @@ from .audit import (
     JsonlAuditSink,
     MemoryAuditSink,
     fingerprint_result,
+    verify_jsonl_audit_chain,
 )
 from .auth import Role, User, authorize
+from .config import DEFAULT_FINANCE_POLICY, FinancePolicyConfig
 from .models import (
     ActionClass,
     CfoPack,
@@ -15,12 +17,14 @@ from .models import (
     FinanceRequest,
     FinanceResult,
     OpportunityFinding,
+    OpportunityPortfolio,
     RiskFindingDetail,
     RiskLevel,
     ScenarioInput,
     ScenarioOutput,
     ValidationFinding,
 )
+from .opportunities import summarize_opportunities
 from .orchestrator import run_governed
 from .policy import ExecutionDecision, evaluate_execution_policy
 
@@ -28,13 +32,16 @@ __all__ = [
     "ActionClass",
     "AuditEvent",
     "CfoPack",
+    "DEFAULT_FINANCE_POLICY",
     "DebateRound",
     "Evidence",
+    "FinancePolicyConfig",
     "FinanceRequest",
     "FinanceResult",
     "JsonlAuditSink",
     "MemoryAuditSink",
     "OpportunityFinding",
+    "OpportunityPortfolio",
     "RiskFindingDetail",
     "RiskLevel",
     "Role",
@@ -47,4 +54,6 @@ __all__ = [
     "evaluate_execution_policy",
     "fingerprint_result",
     "run_governed",
+    "summarize_opportunities",
+    "verify_jsonl_audit_chain",
 ]
