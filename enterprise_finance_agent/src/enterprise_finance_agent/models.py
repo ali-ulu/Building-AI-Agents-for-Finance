@@ -72,6 +72,21 @@ class OpportunityFinding(BaseModel):
     confidence: str = Field(description="high | medium | low")
     assumptions: list[str] = Field(default_factory=list)
     evidence_refs: list[str] = Field(default_factory=list)
+    overlap_group: str | None = Field(
+        default=None,
+        description=(
+            "Economic-value bucket used to prevent double counting. "
+            "Items in the same group are not assumed independently additive."
+        ),
+    )
+
+
+class OpportunityPortfolio(BaseModel):
+    """Gross versus conservative de-duplicated opportunity envelope."""
+
+    gross_estimated_eur: float
+    conservative_estimated_eur: float
+    overlap_groups: dict[str, list[str]] = Field(default_factory=dict)
 
 
 class RiskFindingDetail(BaseModel):
