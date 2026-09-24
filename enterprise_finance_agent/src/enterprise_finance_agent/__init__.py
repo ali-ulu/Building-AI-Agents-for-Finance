@@ -5,6 +5,7 @@ from .audit import (
     JsonlAuditSink,
     MemoryAuditSink,
     fingerprint_result,
+    verify_jsonl_audit_chain,
 )
 from .auth import Role, User, authorize
 from .config import DEFAULT_FINANCE_POLICY, FinancePolicyConfig
@@ -54,4 +55,5 @@ __all__ = [
     "fingerprint_result",
     "run_governed",
     "summarize_opportunities",
+    "verify_jsonl_audit_chain",
 ]
