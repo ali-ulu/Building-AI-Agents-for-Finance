@@ -1,4 +1,6 @@
-"""V1 intelligence slice: calculators + debate + CFO-pack gates."""
+"""Finance intelligence: calculators + debate + CFO-pack gates."""
+
+import pytest
 
 from enterprise_finance_agent.calculators import (
     VarianceLine,
@@ -7,6 +9,7 @@ from enterprise_finance_agent.calculators import (
     cash_release_for_dso_reduction,
     fx_ebitda_impact,
     FxExposure,
+    scenario_ebitda,
     working_capital_metrics,
 )
 from enterprise_finance_agent.debate import debate_round, validate_cfo_pack
@@ -19,7 +22,7 @@ from enterprise_finance_agent.models import (
 )
 
 
-def test_variance_bridge_sums():
+def test_variance_bridge_backward_compatible_when_complete():
     lines = [
         VarianceLine(label="raw material", budget=0.0, actual=420_000.0),
         VarianceLine(label="volume", budget=0.0, actual=-510_000.0),
@@ -30,8 +33,38 @@ def test_variance_bridge_sums():
     assert bridge.unexplained == 0.0
 
 
+def test_variance_bridge_uses_independent_headline():
+    lines = [
+        VarianceLine(label="raw material", budget=0.0, actual=-420_000.0),
+        VarianceLine(label="volume", budget=0.0, actual=-510_000.0),
+        VarianceLine(label="fx", budget=0.0, actual=-180_000.0),
+    ]
+    bridge = build_variance_bridge(lines, headline_variance=-1_200_000.0)
+    assert bridge.explained == -1_110_000.0
+    assert bridge.unexplained == -90_000.0
+    assert bridge.total_variance == -1_200_000.0
+
+
+def test_volume_scenario_uses_revenue_not_ebitda_proxy():
+    result = scenario_ebitda(
+        base_ebitda=10_000_000.0,
+        volume_move_pct=-8.0,
+        contribution_margin_ratio=0.35,
+        revenue_base=100_000_000.0,
+    )
+    assert result == 7_200_000.0
+
+
+def test_volume_scenario_requires_revenue_base():
+    with pytest.raises(ValueError, match="revenue_base"):
+        scenario_ebitda(
+            base_ebitda=10_000_000.0,
+            volume_move_pct=-8.0,
+            contribution_margin_ratio=0.35,
+        )
+
+
 def test_dso_cash_release_matches_example():
-    # 52 -> 45 days frees ~1.8M EUR => implied revenue ~93.86M
     revenue = 1_800_000.0 / 7.0 * 365.0
     release = cash_release_for_dso_reduction(revenue, 52, 45)
     assert abs(release - 1_800_000.0) < 1.0
@@ -54,7 +87,10 @@ def test_working_capital_metrics():
 
 
 def test_fx_impact_linear():
-    impact = fx_ebitda_impact(FxExposure(net_foreign_currency_exposure=4_000_000.0, base_rate=1.08), 5.0)
+    impact = fx_ebitda_impact(
+        FxExposure(net_foreign_currency_exposure=4_000_000.0, base_rate=1.08),
+        5.0,
+    )
     assert impact == 200_000.0
 
 
@@ -100,7 +136,9 @@ def test_validator_flags_unproven_opportunity_and_missing_action():
                 evidence_refs=[],
             )
         ],
-        scenarios=[ScenarioOutput(name="EUR/USD +5%", ebitda_impact_eur=200_000.0)],
+        scenarios=[
+            ScenarioOutput(name="EUR/USD +5%", ebitda_impact_eur=200_000.0)
+        ],
         recommended_actions=[],
     )
     codes = {f.code for f in validate_cfo_pack(pack)}
