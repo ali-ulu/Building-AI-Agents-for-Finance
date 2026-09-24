@@ -7,6 +7,7 @@ from .audit import (
     JsonlAuditSink,
     MemoryAuditSink,
     fingerprint_mapping,
+    verify_jsonl_audit_chain,
 )
 from .auth import AuthorizationDecision, Principal, authorize
 from .debate import Challenge, DebateOutcome, Stake, debate_round
@@ -31,4 +32,5 @@ __all__ = [
     "evaluate_execution_policy",
     "fingerprint_mapping",
     "run_governed",
+    "verify_jsonl_audit_chain",
 ]
