@@ -1,5 +1,8 @@
-"""Ported signal engine tests (PR #2 coverage, adapted to governed models)."""
+"""Signal engine, centralized policy and opportunity aggregation tests."""
 
+from enterprise_finance_agent.adapters import ArCustomerBalance, summarize_ar_aging
+from enterprise_finance_agent.config import FinancePolicyConfig
+from enterprise_finance_agent.opportunities import summarize_opportunities
 from enterprise_finance_agent.reporting import format_cfo_pack_markdown
 from enterprise_finance_agent.signals import (
     CompanySnapshot,
@@ -46,13 +49,29 @@ def test_risk_scan_fires_all_configured_rules():
     assert any("Top supplier" in t for t in codes)
     assert any("variable-rate" in t for t in codes)
     assert any("exchange" in t for t in codes)
-    # every signal carries evidence + mitigation on highs
     for risk in scan_risk_signals(_full_snapshot(), source="t"):
         assert risk.evidence_refs == ["t"]
         assert risk.estimated_eur is not None
 
 
-def test_opportunity_scan_values():
+def test_shared_policy_controls_adapter_and_signal_concentration():
+    strict = FinancePolicyConfig(concentration_share=0.80)
+    risks = scan_risk_signals(_full_snapshot(), policy=strict)
+    assert not any("Top customer" in r.title for r in risks)
+    assert not any("Top supplier" in r.title for r in risks)
+
+    rows = [
+        ArCustomerBalance(customer_id="A", balance_eur=400, days_overdue=0),
+        ArCustomerBalance(customer_id="B", balance_eur=300, days_overdue=0),
+        ArCustomerBalance(customer_id="C", balance_eur=300, days_overdue=0),
+    ]
+    default_summary, _ = summarize_ar_aging(rows)
+    strict_summary, _ = summarize_ar_aging(rows, policy=strict)
+    assert default_summary.concentration_flag is True
+    assert strict_summary.concentration_flag is False
+
+
+def test_opportunity_scan_values_and_overlap_groups():
     opps = {
         o.title: o
         for o in scan_opportunity_signals(_full_snapshot(), source="t")
@@ -66,6 +85,28 @@ def test_opportunity_scan_values():
     gap = opps["Close the gross-margin gap"].estimated_eur
     assert abs(gap - 93_857_142.0 * 0.03) < 1.0
     assert opps["Procurement savings envelope"].estimated_eur == 1_100_000
+    assert (
+        opps["Release cash by reducing DSO"].overlap_group
+        == opps["Recover aged receivables"].overlap_group
+    )
+    assert (
+        opps["Close the gross-margin gap"].overlap_group
+        == opps["Procurement savings envelope"].overlap_group
+    )
+
+
+def test_opportunity_portfolio_prevents_double_counting():
+    opportunities = scan_opportunity_signals(_full_snapshot(), source="t")
+    portfolio = summarize_opportunities(opportunities)
+
+    assert portfolio.gross_estimated_eur > portfolio.conservative_estimated_eur
+    assert set(portfolio.overlap_groups) == {
+        "receivables_cash",
+        "margin_improvement",
+    }
+
+    expected = 1_800_000 + 1_000_000 + (93_857_142.0 * 0.03)
+    assert abs(portfolio.conservative_estimated_eur - expected) < 100
 
 
 def test_quiet_snapshot_stays_quiet():
@@ -103,10 +144,9 @@ def test_consistency_gates_catch_impossible_inputs():
     } <= codes
 
 
-def test_markdown_formatter_renders_pack():
+def test_markdown_formatter_renders_deduplicated_envelope():
     from enterprise_finance_agent.models import (
         CfoPack,
-        OpportunityFinding,
         RiskFindingDetail,
         RiskLevel,
         ScenarioOutput,
@@ -124,18 +164,13 @@ def test_markdown_formatter_renders_pack():
                 estimated_eur=640_000.0,
             )
         ],
-        opportunities=[
-            OpportunityFinding(
-                title="DSO 52->45",
-                category="cash",
-                estimated_eur=1_800_000.0,
-                confidence="high",
-            )
-        ],
+        opportunities=scan_opportunity_signals(_full_snapshot(), source="t"),
         scenarios=[ScenarioOutput(name="FX +5%", ebitda_impact_eur=200_000.0)],
         recommended_actions=["tahsilat sprinti"],
     )
     md = format_cfo_pack_markdown(pack)
     assert "# CFO Finance Pack" in md
     assert "-1,200,000" in md
+    assert "Conservative de-duplicated envelope" in md
+    assert "receivables_cash" in md
     assert "tahsilat sprinti" in md
