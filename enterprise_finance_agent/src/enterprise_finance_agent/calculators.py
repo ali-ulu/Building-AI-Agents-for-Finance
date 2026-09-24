@@ -24,24 +24,38 @@ class VarianceBridge(BaseModel):
     lines: list[VarianceLine]
     total_budget: float
     total_actual: float
+    calculated_variance: float
+    headline_variance: float
     total_variance: float
     explained: float
     unexplained: float
 
 
-def build_variance_bridge(lines: list[VarianceLine]) -> VarianceBridge:
-    """Sum a pre-classified bridge. Unexplained = total - sum(lines)."""
+def build_variance_bridge(
+    lines: list[VarianceLine],
+    headline_variance: float | None = None,
+) -> VarianceBridge:
+    """Build a bridge against an independently supplied headline variance.
+
+    Without a headline, the function remains backward compatible and treats the
+    supplied driver lines as the complete bridge. With a headline, unexplained
+    is headline variance minus the sum of explained driver variances.
+    """
     total_budget = sum(line.budget for line in lines)
     total_actual = sum(line.actual for line in lines)
-    total_variance = total_actual - total_budget
+    calculated_variance = total_actual - total_budget
     explained = sum(line.variance for line in lines)
+    headline = calculated_variance if headline_variance is None else headline_variance
+
     return VarianceBridge(
         lines=lines,
         total_budget=total_budget,
         total_actual=total_actual,
-        total_variance=total_variance,
+        calculated_variance=calculated_variance,
+        headline_variance=headline,
+        total_variance=headline,
         explained=explained,
-        unexplained=total_variance - explained,
+        unexplained=headline - explained,
     )
 
 
@@ -72,7 +86,7 @@ def working_capital_metrics(data: WorkingCapitalInput) -> WorkingCapitalMetrics:
 def cash_release_for_dso_reduction(
     annual_revenue: float, current_dso: float, target_dso: float
 ) -> float:
-    """Cash freed by pulling DSO down. Negative means cash absorbed."""
+    """Cash freed by pulling DSO down."""
     if target_dso >= current_dso:
         return 0.0
     return annual_revenue / 365.0 * (current_dso - target_dso)
@@ -81,6 +95,7 @@ def cash_release_for_dso_reduction(
 def cash_release_for_dio_reduction(
     annual_cogs: float, current_dio: float, target_dio: float
 ) -> float:
+    """Cash freed by reducing inventory days."""
     if target_dio >= current_dio:
         return 0.0
     return annual_cogs / 365.0 * (current_dio - target_dio)
@@ -102,13 +117,24 @@ def scenario_ebitda(
     contribution_margin_ratio: float = 0.0,
     cost_shock: float = 0.0,
     fx_impact: float = 0.0,
+    *,
+    revenue_base: float | None = None,
 ) -> float:
-    """Deterministic scenario: volume effect + cost shock + fx impact.
+    """Deterministic EBITDA scenario.
 
-    volume effect = base revenue proxy via base_ebitda is NOT assumed;
-    caller passes contribution impact separately. To keep it honest we apply
-    the margin ratio to a revenue base the caller supplies via cost_shock
-    convention: simplest transparent form below.
+    Volume impact is revenue_base * volume move * contribution margin.
+    EBITDA is never used as a proxy for revenue. A non-zero volume move without
+    a revenue base is rejected instead of silently producing a misleading value.
     """
-    volume_effect = base_ebitda * contribution_margin_ratio * (volume_move_pct / 100.0)
+    if volume_move_pct and revenue_base is None:
+        raise ValueError("revenue_base is required when volume_move_pct is non-zero")
+
+    volume_effect = 0.0
+    if volume_move_pct:
+        volume_effect = (
+            revenue_base
+            * contribution_margin_ratio
+            * (volume_move_pct / 100.0)
+        )
+
     return base_ebitda + volume_effect - cost_shock + fx_impact
